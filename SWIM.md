@@ -54,6 +54,14 @@ GitHub macOS runner and the build goes to TestFlight.
 
 - `com.brisaloca.swim`: the iOS stub container, and the App Store record.
 - `com.brisaloca.swim.watchkitapp`: the watch app, **HealthKit on**.
+- App record **Brisaloca Swim** `6817824465` (created on the website by
+  Kevin, 2026-09-30). The internal TestFlight group **Household** was created
+  through the API. Adding Kevin to it had to be done on the website: the API
+  answered `409 Tester(s) cannot be assigned`, the same as Rowing's. This
+  happened even after build 4 had processed, so a missing build is not the
+  cause.
+- First TestFlight build: **4** (2026-09-30), expiring 2026-12-29 unless the
+  weekly `due` job replaces it.
 - CI: `.github/workflows/swim-watch.yml`, a copy of Rowing's, using the same
   repository secrets. The weekly `due` job reuses `tools/ci/rowing-due.mjs`
   with the swim bundle id.
