@@ -1,0 +1,85 @@
+# Swim — a watch-only app for pool swims, laid out Kevin's way. See SWIM.md.
+#
+# Built exactly like Rowing (WORKOUTS.md §4, "The build"): XcodeGen on a GitHub
+# macOS runner (.github/workflows/swim-watch.yml), the .xcodeproj never
+# committed, and Apple's watch-only shape — an iOS stub container with no code
+# holding the watch app.
+#
+# ! Nothing here touches the Hub. The only thing shared is SwimKit.
+name: Swim
+options:
+  deploymentTarget:
+    watchOS: "11.0"
+    iOS: "17.0"
+packages:
+  SwimKit: { path: ../../SwimKit }
+settings:
+  base:
+    SWIFT_VERSION: "6.0"
+    DEVELOPMENT_TEAM: 6DNDT6WKF8
+    CODE_SIGN_STYLE: Automatic
+    MARKETING_VERSION: "1.0"
+    # The workflow passes the run number, so every upload is a new build.
+    CURRENT_PROJECT_VERSION: "1"
+targets:
+  # The stub. `watchapp2-container` is the product type Xcode's watch-only
+  # template gives it; its bundle id is the one the App Store record carries.
+  Swim:
+    type: application.watchapp2-container
+    platform: iOS
+    # XcodeGen makes no scheme for a container on its own, and the workflow
+    # builds and archives through this one.
+    scheme: {}
+    settings:
+      base:
+        PRODUCT_NAME: Swim
+        PRODUCT_BUNDLE_IDENTIFIER: com.brisaloca.swim
+        GENERATE_INFOPLIST_FILE: YES
+        INFOPLIST_KEY_CFBundleDisplayName: Swim
+        # HTTPS-free and crypto-free — saying so keeps each upload from
+        # arriving as "Missing Compliance", as in the other apps.
+        INFOPLIST_KEY_ITSAppUsesNonExemptEncryption: NO
+    dependencies:
+      # Embedded at Swim.app/Watch/, which is where a watch app lives in its
+      # container. Placed explicitly rather than trusting XcodeGen's default for
+      # watch targets, which predates single-target watch apps.
+      - target: SwimWatch
+        embed: true
+        codeSign: true
+        copy:
+          destination: productsDirectory
+          subpath: $(CONTENTS_FOLDER_PATH)/Watch
+
+  SwimWatch:
+    type: application
+    platform: watchOS
+    sources:
+      - Sources
+      - Resources
+    dependencies:
+      - package: SwimKit
+    settings:
+      base:
+        PRODUCT_NAME: Swim Watch App
+        PRODUCT_MODULE_NAME: SwimWatch
+        PRODUCT_BUNDLE_IDENTIFIER: com.brisaloca.swim.watchkitapp
+        CODE_SIGN_ENTITLEMENTS: Swim.entitlements
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        # Installed inside the container, never on its own.
+        SKIP_INSTALL: YES
+        GENERATE_INFOPLIST_FILE: YES
+        INFOPLIST_KEY_CFBundleDisplayName: Swim
+        INFOPLIST_KEY_WKWatchOnly: YES
+        INFOPLIST_KEY_NSHealthUpdateUsageDescription: >-
+          Swim saves your swims to Health so they appear in Fitness with your
+          activity rings.
+        INFOPLIST_KEY_NSHealthShareUsageDescription: >-
+          Swim reads your heart rate and lengths during a swim, and your birth
+          date to work out your heart-rate zones.
+    info:
+      # Only for what has no INFOPLIST_KEY_ build setting. `workout-processing`
+      # is what keeps an active session running with the wrist down.
+      path: Generated/SwimWatch-Info.plist
+      properties:
+        WKApplication: true
+        WKBackgroundModes: [workout-processing]

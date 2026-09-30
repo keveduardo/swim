@@ -1,0 +1,255 @@
+# Build the Swim watch app — and, on request, sign it and upload it to
+# TestFlight. A copy of rowing-watch.yml for Apps/Swim — see SWIM.md.
+#
+# ⚠️ WHY THIS RUNS ON A MAC. watchOS has no Linux path: xtool builds iOS only.
+# So this app, like Rowing and unlike the xtool apps, is built by Xcode on a
+# macOS runner from Apps/Swim/project.yml. Nothing about it touches the Hub.
+#
+# Three jobs, deliberately separate:
+#
+#   due     weekly, on a cheap Linux runner: asks App Store Connect how long the
+#           live TestFlight build has left (tools/ci/rowing-due.mjs, given
+#           com.brisaloca.swim — the same 30-day rule as
+#           brisaloca-rebuild.timer, which cannot build this app). Only
+#           `due=true` starts the Mac.
+#   build   every push that touches the app or SwimKit, and a due week.
+#           Unsigned, so it needs no secrets and proves only that the project
+#           and the Swift are sound.
+#   ship    a due week, or by hand (Actions → swim watch → Run workflow →
+#           upload). Signs with Xcode's automatic signing through an App Store
+#           Connect API key and uploads the build to TestFlight.
+#
+# ! WITHOUT `due` THE APP LAPSES. TestFlight builds live 90 days and nothing
+# else rebuilds this one (the Rowing lesson, 2026-09-29).
+#
+# `ship` needs three repository secrets — ASC_KEY_ID, ASC_ISSUER_ID and
+# ASC_KEY_P8 (the .p8's contents) — from an API key minted for this workflow
+# alone, so it can be revoked without touching the key kevg10 uses.
+name: swim watch
+
+on:
+  workflow_dispatch:
+    inputs:
+      upload:
+        description: Sign and upload to TestFlight
+        type: boolean
+        default: false
+      expiry_check:
+        description: Behave exactly like the weekly run (upload only if due)
+        type: boolean
+        default: false
+      render:
+        description: Screenshot the live pages in a watch simulator
+        type: boolean
+        default: false
+  schedule:
+    # Wednesdays 15:47 UTC, half an hour after Rowing's. Weekly is plenty
+    # against a 30-day threshold.
+    - cron: '47 15 * * 3'
+  push:
+    paths:
+      - 'Apps/Swim/**'
+      - 'SwimKit/**'
+      - '.github/workflows/swim-watch.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  due:
+    # `expiry_check` exists so the scheduled path can be run on demand — a
+    # schedule nobody can trigger is only ever tested in the week it matters.
+    if: github.event_name == 'schedule' || inputs.expiry_check
+    runs-on: ubuntu-latest
+    outputs:
+      due: ${{ steps.ask.outputs.due }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Ask App Store Connect whether the live build is near expiry
+        id: ask
+        env:
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+          ASC_KEY_P8: ${{ secrets.ASC_KEY_P8 }}
+        run: |
+          set -euo pipefail
+          # Where asc.mjs looks, and mode 600 because it refuses anything looser.
+          dir="$HOME/.config/appstoreconnect/private_keys"
+          mkdir -p "$dir"
+          printf '%s\n' "$ASC_KEY_P8" > "$dir/AuthKey_$ASC_KEY_ID.p8"
+          chmod 600 "$dir/AuthKey_$ASC_KEY_ID.p8"
+          node tools/ci/rowing-due.mjs com.brisaloca.swim
+          rm -f "$dir/AuthKey_$ASC_KEY_ID.p8"
+
+  build:
+    needs: due
+    # Runs whenever `due` was skipped (a push or a hand run), and on a
+    # scheduled run only when a build is due. `!cancelled()` because a job
+    # whose dependency was skipped is otherwise skipped too.
+    if: ${{ !cancelled() && ((github.event_name != 'schedule' && !inputs.expiry_check) || needs.due.outputs.due == 'true') }}
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Newest Xcode on the runner
+        run: |
+          xc=$(ls -d /Applications/Xcode_*.app | sort -V | tail -1)
+          sudo xcode-select -s "$xc"
+          xcodebuild -version
+          xcodebuild -showsdks | grep -i watch
+
+      - name: Generate the project
+        run: |
+          set -euo pipefail
+          brew install xcodegen
+          cd Apps/Swim && xcodegen generate
+          xcodebuild -list -project Swim.xcodeproj
+
+      - name: Build, unsigned
+        # ! pipefail, or `tail` would report success for a failed build.
+        run: |
+          set -euo pipefail
+          cd Apps/Swim
+          xcodebuild build -project Swim.xcodeproj -scheme Swim \
+            -destination 'generic/platform=iOS' -derivedDataPath dd \
+            CODE_SIGNING_ALLOWED=NO 2>&1 | tail -40
+
+      - name: Show what was built
+        run: |
+          set -euo pipefail
+          app=$(find Apps/Swim/dd/Build/Products -name Swim.app -maxdepth 2 -type d | head -1)
+          find "$app" -maxdepth 3 | head -40
+          plutil -p "$app/Watch/Swim Watch App.app/Info.plist"
+
+  ship:
+    needs: [due, build]
+    if: >-
+      ${{ !cancelled() && needs.build.result == 'success' && (
+          (github.event_name == 'workflow_dispatch' && inputs.upload) ||
+          needs.due.outputs.due == 'true') }}
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Newest Xcode on the runner
+        run: |
+          xc=$(ls -d /Applications/Xcode_*.app | sort -V | tail -1)
+          sudo xcode-select -s "$xc"
+          xcodebuild -version
+
+      - name: Generate the project
+        run: |
+          set -euo pipefail
+          brew install xcodegen
+          cd Apps/Swim && xcodegen generate
+
+      - name: Archive, sign and upload
+        env:
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+          ASC_KEY_P8: ${{ secrets.ASC_KEY_P8 }}
+        run: |
+          set -euo pipefail
+          for v in ASC_KEY_ID ASC_ISSUER_ID ASC_KEY_P8; do
+            [ -n "${!v}" ] || { echo "missing repository secret $v"; exit 1; }
+          done
+          key="$RUNNER_TEMP/AuthKey_$ASC_KEY_ID.p8"
+          printf '%s\n' "$ASC_KEY_P8" > "$key"
+          auth=(-allowProvisioningUpdates
+                -authenticationKeyPath "$key"
+                -authenticationKeyID "$ASC_KEY_ID"
+                -authenticationKeyIssuerID "$ASC_ISSUER_ID")
+
+          cd Apps/Swim
+          xcodebuild archive -project Swim.xcodeproj -scheme Swim \
+            -destination 'generic/platform=iOS' \
+            -archivePath "$RUNNER_TEMP/Swim.xcarchive" \
+            CURRENT_PROJECT_VERSION=${{ github.run_number }} \
+            "${auth[@]}" 2>&1 | tail -40
+
+          cat > "$RUNNER_TEMP/export.plist" <<'PLIST'
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+            <key>method</key><string>app-store-connect</string>
+            <key>destination</key><string>upload</string>
+            <key>teamID</key><string>6DNDT6WKF8</string>
+            <key>signingStyle</key><string>automatic</string>
+            <key>manageAppVersionAndBuildNumber</key><false/>
+          </dict>
+          </plist>
+          PLIST
+
+          xcodebuild -exportArchive \
+            -archivePath "$RUNNER_TEMP/Swim.xcarchive" \
+            -exportOptionsPlist "$RUNNER_TEMP/export.plist" \
+            -exportPath "$RUNNER_TEMP/export" \
+            "${auth[@]}" 2>&1 | tail -40
+          rm -f "$key"
+
+  # Screenshots of the live pages, from the real SwiftUI in a watch simulator
+  # (Kevin, 2026-09-29: "once finished, can you show me the render"). The app's
+  # Debug build has a `-renderDemo metrics|controls` mode with fixed numbers,
+  # because a simulator has no rower and no Health. Nothing is signed or sent
+  # anywhere but this run's artifacts.
+  render:
+    if: github.event_name == 'workflow_dispatch' && inputs.render
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Newest Xcode on the runner
+        run: |
+          xc=$(ls -d /Applications/Xcode_*.app | sort -V | tail -1)
+          sudo xcode-select -s "$xc"
+          xcodebuild -version
+
+      - name: Generate the project
+        run: |
+          set -euo pipefail
+          brew install xcodegen
+          cd Apps/Swim && xcodegen generate
+
+      - name: Pick and boot a watch simulator
+        id: sim
+        run: |
+          set -euo pipefail
+          # The biggest watch first — Kevin wears an Ultra.
+          udid=$(xcrun simctl list devices available --json | python3 -c '
+          import json,sys
+          devs=[d for rt,ds in json.load(sys.stdin)["devices"].items() if "watchOS" in rt for d in ds]
+          devs.sort(key=lambda d: ("Ultra" not in d["name"], d["name"]))
+          print(devs[0]["udid"]); print(devs[0]["name"], file=sys.stderr)')
+          echo "udid=$udid" >> "$GITHUB_OUTPUT"
+          xcrun simctl boot "$udid"
+          xcrun simctl bootstatus "$udid" -b
+
+      - name: Build for the simulator
+        run: |
+          set -euo pipefail
+          cd Apps/Swim
+          xcodebuild build -project Swim.xcodeproj -scheme SwimWatch -configuration Debug \
+            -destination "id=${{ steps.sim.outputs.udid }}" -derivedDataPath dd \
+            CODE_SIGNING_ALLOWED=NO 2>&1 | tail -20
+
+      - name: Launch each page and screenshot it
+        run: |
+          set -euo pipefail
+          udid=${{ steps.sim.outputs.udid }}
+          app=$(find Apps/Swim/dd/Build/Products -name 'Swim Watch App.app' -type d | head -1)
+          xcrun simctl install "$udid" "$app"
+          xcrun simctl status_bar "$udid" override --time "7:03" || true
+          mkdir -p renders
+          for page in start pools swimming resting controls summary; do
+            xcrun simctl terminate "$udid" com.brisaloca.swim.watchkitapp || true
+            xcrun simctl launch "$udid" com.brisaloca.swim.watchkitapp -renderDemo "$page"
+            sleep 8
+            xcrun simctl io "$udid" screenshot "renders/$page.png"
+          done
+          ls -la renders
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: swim-renders
+          path: renders/
