@@ -74,9 +74,12 @@ struct StartPage: View {
     var body: some View {
         VStack(spacing: 10) {
             SwimBadge(size: 40)
+            // Filled, with white type: a tinted plain button read as disabled
+            // in the first render.
             Button(action: start) {
-                Text("Start").font(.title3.bold()).frame(maxWidth: .infinity)
+                Text("Start").font(.title3.bold()).foregroundStyle(.white).frame(maxWidth: .infinity)
             }
+            .buttonStyle(.borderedProminent)
             .tint(Palette.badge)
             Button { choosing = true } label: {
                 HStack {
