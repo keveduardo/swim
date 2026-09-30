@@ -360,13 +360,14 @@ struct ControlsPage: View {
 
     var body: some View {
         Grid(horizontalSpacing: 12, verticalSpacing: 10) {
-            GridRow {
-                control("Lock", "drop.fill", .cyan, lock)
-                control("End", "xmark", .red, end)
-            }
+            // Pause beside End, Lock below (Kevin, 2026-09-30).
             GridRow {
                 control(isPaused ? "Resume" : "Pause",
                         isPaused ? "arrow.clockwise" : "pause.fill", .yellow, pause)
+                control("End", "xmark", .red, end)
+            }
+            GridRow {
+                control("Lock", "drop.fill", .cyan, lock)
                 Color.clear.frame(width: 1, height: 1)
             }
         }
