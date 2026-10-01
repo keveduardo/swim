@@ -16,8 +16,13 @@ and it works. lets submit"), which is what the submission was waiting for.
 Build 14 replaced 11 on the version; the Notes gained an "ABOUT THE APP"
 section answering the Guideline 2.1 questions ahead of time. A cropped
 dry-land recording is at `~/Downloads/review/swim-review.mp4` if App Review
-asks for one (it ends on "Nothing to save"). The unlisted request is still to
-send — it needs Kevin's OK for the form's acknowledgement.
+asks for one (it ends on "Nothing to save"). **Unlisted request sent
+2026-10-01** (developer.apple.com/contact/request/unlisted-app; Kevin OK'd the
+acknowledgement); Apple answers by email. As answered: organization type Other
+— "A single household (one family)"; Internally; 4 people, 1 organization;
+audience Other — "Members of one household"; category Other — "Fitness
+(workout recording)"; Unmanaged, 4 devices; USA. On that form the tick boxes
+only take through the form-fill tool — clicks on them do not register.
 
 ---
 
