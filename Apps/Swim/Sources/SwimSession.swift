@@ -33,6 +33,8 @@ final class SwimSession: NSObject {
         var duration: TimeInterval
         var sets: Int
         var averageHeartRate: Double?
+        /// The last reading of the swim, in Celsius; nil when the watch gave none.
+        var waterCelsius: Double?
     }
 
     private(set) var phase: Phase = .idle
@@ -44,14 +46,20 @@ final class SwimSession: NSObject {
     /// From Tanaka's formula and the birth date in Health; nil when Health
     /// has no birth date or would not share it, and the zone is left off.
     private(set) var maxHeartRate: Double?
+    /// The water's temperature in Celsius, as the watch last recorded it. Nil
+    /// until a reading arrives — and for the whole swim on a watch with no
+    /// water-temperature sensor.
+    private(set) var waterCelsius: Double?
     private(set) var tracker = SetTracker(workoutStart: .now)
 
     @ObservationIgnored private let health = HKHealthStore()
     @ObservationIgnored private var session: HKWorkoutSession?
     @ObservationIgnored private var builder: HKLiveWorkoutBuilder?
+    @ObservationIgnored private var waterQuery: HKAnchoredObjectQuery?
 
     nonisolated private static let heartRateType = HKQuantityType(.heartRate)
     nonisolated private static let distanceType = HKQuantityType(.distanceSwimming)
+    nonisolated private static let waterType = HKQuantityType(.waterTemperature)
 
     /// What the watch writes: the workout and the samples the data source
     /// collects for a swim. What it reads: those, heart rate for the screen,
@@ -68,6 +76,7 @@ final class SwimSession: NSObject {
         HKQuantityType(.activeEnergyBurned),
         HKQuantityType(.distanceSwimming),
         HKQuantityType(.swimmingStrokeCount),
+        waterType,
         HKCharacteristicType(.dateOfBirth),
     ]
 
@@ -90,6 +99,7 @@ final class SwimSession: NSObject {
         self.pool = pool
         meters = 0
         heartRate = nil
+        waterCelsius = nil
         isPaused = false
         do {
             try await health.requestAuthorization(toShare: Self.shareTypes, read: Self.readTypes)
@@ -119,6 +129,7 @@ final class SwimSession: NSObject {
             session.startActivity(with: now)
             try await builder.beginCollection(at: now)
             tracker = SetTracker(workoutStart: now)
+            watchWater(since: now)
             phase = .running
             // Splashes are taps. The Digital Crown undoes it, as in Apple's app.
             WKInterfaceDevice.current().enableWaterLock()
@@ -160,7 +171,8 @@ final class SwimSession: NSObject {
                     meters: meters,
                     duration: duration,
                     sets: tracker.sets.count,
-                    averageHeartRate: averageHeartRate
+                    averageHeartRate: averageHeartRate,
+                    waterCelsius: waterCelsius
                 ))
             }
         } catch {
@@ -183,8 +195,44 @@ final class SwimSession: NSObject {
     }
 
     private func clear() {
+        if let waterQuery { health.stop(waterQuery) }
+        waterQuery = nil
         session = nil
         builder = nil
+    }
+
+    /// Follow the water temperature the watch itself records while submerged
+    /// (Kevin, 2026-09-30: "instead of the total set time box can we change
+    /// that to the water temperature").
+    ///
+    /// **Where the number comes from.** A watch with a depth gauge — the Ultra,
+    /// which is what Kevin wears — writes `waterTemperature` samples to Health
+    /// when it is under water. This reads them as they land: a query from the
+    /// moment of Start, with an update handler, rather than anything asked of
+    /// the workout builder, so it does not depend on what the live data source
+    /// chooses to collect for a pool swim.
+    ///
+    /// ! UNPROVEN IN WATER, like the rest of this app. If the cell stays "--"
+    /// through a real swim, the watch is not recording temperature for a
+    /// third-party workout, and the other way to get it is Core Motion's
+    /// `CMWaterSubmersionManager` (its own entitlement and background mode).
+    private func watchWater(since start: Date) {
+        let handler: @Sendable (HKAnchoredObjectQuery, [HKSample]?, [HKDeletedObject]?, HKQueryAnchor?, (any Error)?) -> Void = { [weak self] _, samples, _, _, _ in
+            // Only a number crosses to the main actor.
+            guard let latest = (samples as? [HKQuantitySample])?.max(by: { $0.endDate < $1.endDate }) else { return }
+            let celsius = latest.quantity.doubleValue(for: .degreeCelsius())
+            Task { @MainActor in self?.collected(waterCelsius: celsius) }
+        }
+        let query = HKAnchoredObjectQuery(
+            type: Self.waterType,
+            predicate: HKQuery.predicateForSamples(withStart: start, end: nil),
+            anchor: nil,
+            limit: HKObjectQueryNoLimit,
+            resultsHandler: handler
+        )
+        query.updateHandler = handler
+        health.execute(query)
+        waterQuery = query
     }
 
     private func readMaxHeartRate() -> Double? {
@@ -212,6 +260,11 @@ final class SwimSession: NSObject {
     fileprivate func collected(heartRate bpm: Double?, meters: Double?) {
         if let bpm { heartRate = bpm }
         if let meters { self.meters = meters }
+    }
+
+    fileprivate func collected(waterCelsius celsius: Double) {
+        guard phase == .running else { return }
+        waterCelsius = celsius
     }
 
     fileprivate func collected(lengths: [SetTracker.Length]) {

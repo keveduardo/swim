@@ -74,8 +74,8 @@ targets:
           Swim saves your swims to Health so they appear in Fitness with your
           activity rings.
         INFOPLIST_KEY_NSHealthShareUsageDescription: >-
-          Swim reads your heart rate and lengths during a swim, and your birth
-          date to work out your heart-rate zones.
+          Swim reads your heart rate, lengths and the water temperature during
+          a swim, and your birth date to work out your heart-rate zones.
     info:
       # Only for what has no INFOPLIST_KEY_ build setting. `workout-processing`
       # is what keeps an active session running with the wrist down.

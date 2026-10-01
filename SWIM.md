@@ -11,8 +11,11 @@ GitHub macOS runner and the build goes to TestFlight.
 - **Start screen:** Start, plus a pool button that opens a menu with three
   choices: **25 yd, 25 m, 50 m**. The last choice is remembered.
 - **Live screen** (his mockup): Total Distance across the top; below it,
-  **Total Set Time** (with hundredths) beside **heart rate** with
-  **ZONE: REST / 1–5** and a coloured dot. Thin rules between.
+  **Water Temp** beside **heart rate** with **ZONE: REST / 1–5** and a
+  coloured dot. Thin rules between. (The mockup had **Total Set Time** in the
+  left cell; Kevin swapped it for the water temperature later on 2026-09-30,
+  so no set or rest clock is on screen. Sets are still counted for the
+  summary.)
 - **Sets:** detected automatically.
 - **Zones:** from his age in Health.
 - **Total workout time:** yes. It sits in yellow beside the swimmer badge in the
@@ -45,9 +48,14 @@ GitHub macOS runner and the build goes to TestFlight.
   and below 50 % is REST. Apple's own zones are private to its app, so these
   can differ from what Fitness shows. With no birth date in Health, the zone
   line is hidden.
+- **Water temperature** is the watch's own: an Ultra writes
+  `waterTemperature` samples to Health while submerged, and
+  `SwimSession.watchWater` follows them with an anchored query from Start.
+  Shown in whole degrees, °F or °C by region; "--" until a reading arrives,
+  and always on a watch without the sensor.
 - **Water Lock** turns on at Start (`WKInterfaceDevice.enableWaterLock`). The
   Crown clears it.
-- **Always-On:** the same layout, ticking once a second without hundredths.
+- **Always-On:** the same layout; the page ticks once a second either way now that no hundredths are on it.
 - A swim with no distance and under a minute is discarded, not saved.
 
 ## Identifiers
@@ -70,3 +78,8 @@ None of this has been in water. The things to check on the first swim:
 1. Lap events arrive per length, and whether they carry a start time.
 2. The rest threshold feels right at the wall.
 3. The clock-row header renders as in the mockup (see the render job).
+4. **The water temperature actually appears.** It depends on the watch
+   recording `waterTemperature` during a third-party pool workout, which
+   nothing here can prove on dry land. If it stays "--", the fallback is Core
+   Motion's `CMWaterSubmersionManager` (its own entitlement and background
+   mode).

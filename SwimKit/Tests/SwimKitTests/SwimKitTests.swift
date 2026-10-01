@@ -134,4 +134,11 @@ struct SwimClockTests {
         #expect(SwimClock.total(425) == "7:05")
         #expect(SwimClock.total(3723) == "1:02:03")
     }
+
+    @Test func waterTemperatureInWholeDegrees() {
+        #expect(WaterTemperature.text(celsius: 26.1, fahrenheit: true) == "79°F")
+        #expect(WaterTemperature.text(celsius: 26.1, fahrenheit: false) == "26°C")
+        #expect(WaterTemperature.text(celsius: 27.5, fahrenheit: false) == "28°C")
+        #expect(WaterTemperature.text(celsius: 0, fahrenheit: true) == "32°F")
+    }
 }

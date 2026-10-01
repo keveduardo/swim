@@ -178,12 +178,13 @@ struct LivePager<Controls: View, Metrics: View>: View {
 /// render can hand it its own.
 private struct LiveMetrics: View {
     let session: SwimSession
-    @Environment(\.isLuminanceReduced) private var dimmed
 
     var body: some View {
-        // Hundredths need a fast tick; a dimmed wrist gets one a second.
-        TimelineView(.periodic(from: .now, by: dimmed ? 1 : 0.05)) { context in
-            MetricsPage(values: .init(session: session, at: context.date), hundredths: !dimmed)
+        // Once a second: the only clock left on the page is the total, in whole
+        // seconds. (The set timer's hundredths needed 20 a second until the
+        // water temperature took its cell, 2026-09-30.)
+        TimelineView(.periodic(from: .now, by: 1)) { context in
+            MetricsPage(values: .init(session: session, at: context.date))
         }
     }
 }
@@ -193,22 +194,18 @@ struct MetricValues {
     var pool: Pool
     var meters: Double
     var total: TimeInterval
-    var status: Status
+    /// Celsius, as Health holds it; nil until the watch has a reading.
+    var waterCelsius: Double?
     var heartRate: Double?
     var zone: HeartZone?
     var isPaused = false
 
-    enum Status {
-        case swimming(TimeInterval)
-        case resting(TimeInterval)
-    }
-
-    init(pool: Pool, meters: Double, total: TimeInterval, status: Status,
+    init(pool: Pool, meters: Double, total: TimeInterval, waterCelsius: Double?,
          heartRate: Double?, zone: HeartZone?, isPaused: Bool = false) {
         self.pool = pool
         self.meters = meters
         self.total = total
-        self.status = status
+        self.waterCelsius = waterCelsius
         self.heartRate = heartRate
         self.zone = zone
         self.isPaused = isPaused
@@ -216,15 +213,11 @@ struct MetricValues {
 
     @MainActor
     init(session: SwimSession, at now: Date) {
-        let status: Status = switch session.tracker.status(at: now) {
-        case .swimming(let since): .swimming(now.timeIntervalSince(since))
-        case .resting(let since, _): .resting(now.timeIntervalSince(since))
-        }
         self.init(
             pool: session.pool,
             meters: session.meters,
             total: session.elapsed(at: now),
-            status: status,
+            waterCelsius: session.waterCelsius,
             heartRate: session.heartRate,
             zone: zip(session.heartRate, session.maxHeartRate).map { HeartZone(bpm: $0, maxHeartRate: $1) },
             isPaused: session.isPaused
@@ -239,15 +232,17 @@ private func zip<A, B>(_ a: A?, _ b: B?) -> (A, B)? {
 }
 
 /// Kevin's layout, from his mockup (2026-09-30): total distance across the
-/// top, set time and heart rate side by side beneath, thin rules between.
-/// Total workout time sits by the swimmer badge, in yellow so it is never
-/// read as the clock across from it.
+/// top, two cells side by side beneath, thin rules between. Total workout time
+/// sits by the swimmer badge, in yellow so it is never read as the clock
+/// across from it.
 ///
-/// While resting, the left cell becomes the rest clock — Apple's app does the
-/// same, and a frozen set time would look like a stuck watch.
+/// ! THE LEFT CELL IS THE WATER'S TEMPERATURE, not the set timer the mockup
+/// had (Kevin, later the same day: "instead of the total set time box can we
+/// change that to the water temperature"). So no set or rest clock is on
+/// screen any more; sets are still counted, and the summary still says how
+/// many.
 struct MetricsPage: View {
     let values: MetricValues
-    let hundredths: Bool
 
     var body: some View {
         VStack(spacing: 0) {
@@ -270,7 +265,7 @@ struct MetricsPage: View {
             rule
 
             HStack(spacing: 0) {
-                setCell
+                waterCell
                     .frame(maxWidth: .infinity)
                 Rectangle().fill(Palette.rule).frame(width: 1).padding(.vertical, 4)
                 heartCell
@@ -301,17 +296,17 @@ struct MetricsPage: View {
         Rectangle().fill(Palette.rule).frame(height: 1)
     }
 
-    private var setCell: some View {
-        let (label, seconds): (String, TimeInterval) = switch values.status {
-        case .swimming(let s): ("Total Set Time", s)
-        case .resting(let s): ("Rest", s)
-        }
-        return VStack(alignment: .leading, spacing: 2) {
-            Text(label)
+    /// "--" until the watch has a reading, and all swim long on a watch
+    /// without the sensor: an honest blank, not a guessed number.
+    private var waterCell: some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text("Water Temp")
                 .font(.system(size: 13, weight: .medium))
                 .foregroundStyle(Palette.label)
-            Text(SwimClock.set(seconds, hundredths: hundredths))
-                .font(.system(size: 20, weight: .semibold, design: .rounded))
+            Text(values.waterCelsius.map {
+                WaterTemperature.text(celsius: $0, fahrenheit: UnitTemperature(forLocale: .current) == .fahrenheit)
+            } ?? "--")
+                .font(.system(size: 30, weight: .semibold, design: .rounded))
                 .monospacedDigit()
         }
         .lineLimit(1)
@@ -407,6 +402,9 @@ struct SummaryPage: View {
                 row("Time", SwimClock.total(summary.duration))
                 row("Sets", "\(summary.sets)")
                 row("Avg Heart Rate", summary.averageHeartRate.map { "\(Int($0.rounded())) BPM" } ?? "--")
+                if let water = summary.waterCelsius {
+                    row("Water", WaterTemperature.text(celsius: water, fahrenheit: UnitTemperature(forLocale: .current) == .fahrenheit))
+                }
                 Button("Done", action: done).padding(.top, 4)
             }
         }

@@ -48,18 +48,18 @@ struct RenderDemo: View {
         case .pools:
             NavigationStack { PoolMenu(pool: $pool) {} }
         case .swimming:
-            // The numbers from Kevin's mockup.
+            // The numbers from Kevin's mockup; no water reading yet.
             pager(.metrics, MetricValues(pool: .yards25, meters: 0, total: 3.43,
-                                         status: .swimming(3.43), heartRate: 71, zone: .rest))
+                                         waterCelsius: nil, heartRate: 71, zone: .rest))
         case .resting:
             pager(.metrics, MetricValues(pool: .yards25, meters: 8 * 22.86, total: 1234,
-                                         status: .resting(18.27), heartRate: 142, zone: .three))
+                                         waterCelsius: 27.8, heartRate: 142, zone: .three))
         case .controls:
             pager(.controls, MetricValues(pool: .yards25, meters: 0, total: 0,
-                                          status: .swimming(0), heartRate: nil, zone: nil))
+                                          waterCelsius: nil, heartRate: nil, zone: nil))
         case .summary:
             SummaryPage(summary: .init(pool: .yards25, meters: 40 * 22.86, duration: 1712,
-                                       sets: 6, averageHeartRate: 128)) {}
+                                       sets: 6, averageHeartRate: 128, waterCelsius: 27.8)) {}
         }
     }
 
@@ -67,7 +67,7 @@ struct RenderDemo: View {
         LivePager(page: .constant(start)) {
             ControlsPage(isPaused: false, end: {}, pause: {}, lock: {})
         } metrics: {
-            MetricsPage(values: values, hundredths: true)
+            MetricsPage(values: values)
         }
     }
 }
