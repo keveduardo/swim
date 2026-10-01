@@ -9,13 +9,15 @@ Distribution: **Unlisted** (Kevin, 2026-09-30), like Soccer and Español —
 request at developer.apple.com/contact/request/unlisted-app once it is
 submitted; it goes through the same review.
 
-**NOT SUBMITTED, on purpose.** Kevin swims with it first ("Prepare only, I'll
-swim first"). Everything else is done: the listing, four screenshots, price,
-territories, review notes, build **11** attached (the first with the privacy
-manifest), and the two website-only forms — App Privacy published as "Data
-Not Collected", and the Regulated Medical Device declaration answered "No".
-What remains is one call: add version 1.0 to a review submission and submit
-(the same three API calls Rowing's took), then the unlisted request.
+**SUBMITTED 2026-10-01 18:59 UTC — version 1.0, build 14, manual release.**
+Submission `8d040149-d9ac-4b0d-b90f-4c85d19aadfe`, WAITING_FOR_REVIEW. Kevin
+swam with build 14 the same day and the water temperature showed ("i did swim
+and it works. lets submit"), which is what the submission was waiting for.
+Build 14 replaced 11 on the version; the Notes gained an "ABOUT THE APP"
+section answering the Guideline 2.1 questions ahead of time. A cropped
+dry-land recording is at `~/Downloads/review/swim-review.mp4` if App Review
+asks for one (it ends on "Nothing to save"). The unlisted request is still to
+send — it needs Kevin's OK for the form's acknowledgement.
 
 ---
 
@@ -133,10 +135,9 @@ page and the summary.
 
 ## Known before submitting
 
-- ⚠️ **One swim so far (2026-10-01, build 11): it worked, except the water
-  temperature, which never appeared** (`SWIM.md`, "Not yet proven"). The
-  listing promises it, so do not submit until a swim shows it — and the build
-  attached to the version (11) is the one that does not.
+- **Two swims, 2026-10-01.** Build 11: everything worked except the water
+  temperature, which never appeared. Build 14 (reads it from the workout
+  builder): Kevin reports it works. Build 14 is the one in review.
 - The app keeps one preference on the watch (the last pool), in UserDefaults
   via `@AppStorage`. `Resources/PrivacyInfo.xcprivacy` declares it (required-
   reason `CA92.1`); it was added for this submission, so the build attached is

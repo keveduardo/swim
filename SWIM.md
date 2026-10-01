@@ -85,7 +85,8 @@ stand as "nothing complained of", not as checked.
 3. The clock-row header renders as in the mockup (see the render job).
 4. **The water temperature actually appears.** ❌ on the first swim, when the
    app only queried Health for the samples. The build after it also reads them
-   from the workout builder — still unproven in water. What tells the two
+   from the workout builder, and ✅ on Kevin's second swim the same day
+   (build 14: "i did swim and it works"). What tells the two
    failures apart: iPhone **Health → Browse → Other Data → Water Temperature**.
    A reading from the time of that swim means the watch records it and the app
    was reading it wrongly; none means the watch does not record it for a
