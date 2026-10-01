@@ -133,9 +133,10 @@ page and the summary.
 
 ## Known before submitting
 
-- ⚠️ **Nothing in this app has been in water** (`SWIM.md`, "Not yet proven"):
-  not the lap events, not the set/rest split, and not the water temperature,
-  which depends on the watch recording it during a third-party workout.
+- ⚠️ **One swim so far (2026-10-01, build 11): it worked, except the water
+  temperature, which never appeared** (`SWIM.md`, "Not yet proven"). The
+  listing promises it, so do not submit until a swim shows it — and the build
+  attached to the version (11) is the one that does not.
 - The app keeps one preference on the watch (the last pool), in UserDefaults
   via `@AppStorage`. `Resources/PrivacyInfo.xcprivacy` declares it (required-
   reason `CA92.1`); it was added for this submission, so the build attached is

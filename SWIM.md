@@ -49,8 +49,10 @@ GitHub macOS runner and the build goes to TestFlight.
   can differ from what Fitness shows. With no birth date in Health, the zone
   line is hidden.
 - **Water temperature** is the watch's own: an Ultra writes
-  `waterTemperature` samples to Health while submerged, and
-  `SwimSession.watchWater` follows them with an anchored query from Start.
+  `waterTemperature` samples while submerged. The app reads them two ways:
+  from the workout builder, as it reads heart rate (the live data source is
+  told to collect the type), and from Health with an anchored query from Start
+  (`SwimSession.watchWater`). The query alone showed nothing on the first swim.
   Shown in whole degrees, °F or °C by region; "--" until a reading arrives,
   and always on a watch without the sensor.
 - **Water Lock** turns on at Start (`WKInterfaceDevice.enableWaterLock`). The
@@ -73,13 +75,23 @@ GitHub macOS runner and the build goes to TestFlight.
 
 ## Not yet proven
 
-None of this has been in water. The things to check on the first swim:
+**First swim, 2026-10-01 (build 11).** Kevin: "overall it worked well", except
+that the water temperature neither showed nor was recorded — the cell read
+"--" throughout. He did not go through the items below one by one, so 1–3
+stand as "nothing complained of", not as checked.
 
 1. Lap events arrive per length, and whether they carry a start time.
 2. The rest threshold feels right at the wall.
 3. The clock-row header renders as in the mockup (see the render job).
-4. **The water temperature actually appears.** It depends on the watch
-   recording `waterTemperature` during a third-party pool workout, which
-   nothing here can prove on dry land. If it stays "--", the fallback is Core
-   Motion's `CMWaterSubmersionManager` (its own entitlement and background
-   mode).
+4. **The water temperature actually appears.** ❌ on the first swim, when the
+   app only queried Health for the samples. The build after it also reads them
+   from the workout builder — still unproven in water. What tells the two
+   failures apart: iPhone **Health → Browse → Other Data → Water Temperature**.
+   A reading from the time of that swim means the watch records it and the app
+   was reading it wrongly; none means the watch does not record it for a
+   third-party workout, and what is left is Core Motion's
+   `CMWaterSubmersionManager`. That needs the Shallow Depth and Pressure
+   capability (no approval from Apple, to 6 m), `NSMotionUsageDescription`
+   (the app crashes without it), and the `underwater-depth` background mode,
+   which puts the app on the watch's auto-launch list and holds it frontmost
+   as a dive app — a real change, not a quiet fallback.

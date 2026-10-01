@@ -116,10 +116,14 @@ final class SwimSession: NSObject {
 
             let session = try HKWorkoutSession(healthStore: health, configuration: configuration)
             let builder = session.associatedWorkoutBuilder()
-            builder.dataSource = HKLiveWorkoutDataSource(
+            let source = HKLiveWorkoutDataSource(
                 healthStore: health,
                 workoutConfiguration: configuration
             )
+            // Asked for by name rather than left to the source's defaults for
+            // a pool swim — see `watchWater`.
+            source.enableCollection(for: Self.waterType, predicate: nil)
+            builder.dataSource = source
             session.delegate = self
             builder.delegate = self
             self.session = session
@@ -207,15 +211,26 @@ final class SwimSession: NSObject {
     ///
     /// **Where the number comes from.** A watch with a depth gauge — the Ultra,
     /// which is what Kevin wears — writes `waterTemperature` samples to Health
-    /// when it is under water. This reads them as they land: a query from the
-    /// moment of Start, with an update handler, rather than anything asked of
-    /// the workout builder, so it does not depend on what the live data source
-    /// chooses to collect for a pool swim.
+    /// when it is under water, "during dive sessions and swimming workouts"
+    /// (Apple's page for the type).
     ///
-    /// ! UNPROVEN IN WATER, like the rest of this app. If the cell stays "--"
-    /// through a real swim, the watch is not recording temperature for a
-    /// third-party workout, and the other way to get it is Core Motion's
-    /// `CMWaterSubmersionManager` (its own entitlement and background mode).
+    /// **Two ways in, because the first alone failed.** This query reads the
+    /// samples as they land in Health, from the moment of Start. On Kevin's
+    /// first swim (2026-10-01, build 11) the cell stayed "--" from Start to
+    /// End. The likely reason: a live workout's samples are held by the
+    /// builder and reach Health only when the workout is saved — which is why
+    /// heart rate, read from the builder, did show. So since then the data
+    /// source is also told to collect the type (`start`), and
+    /// `workoutBuilder(_:didCollectDataOf:)` reads it from the builder as it
+    /// does heart rate. The query stays, for a watch that writes the samples
+    /// outside the workout.
+    ///
+    /// ! THE SECOND WAY IS UNPROVEN IN WATER TOO. If the cell still stays "--",
+    /// what is left is Core Motion's `CMWaterSubmersionManager`, which is a
+    /// bigger thing than it sounds: the Shallow Depth and Pressure capability,
+    /// `NSMotionUsageDescription` (without it the app crashes), and the
+    /// `underwater-depth` background mode, which makes this a dive app to the
+    /// system — the auto-launch list, held frontmost. See SWIM.md.
     private func watchWater(since start: Date) {
         let handler: @Sendable (HKAnchoredObjectQuery, [HKSample]?, [HKDeletedObject]?, HKQueryAnchor?, (any Error)?) -> Void = { [weak self] _, samples, _, _, _ in
             // Only a number crosses to the main actor.
@@ -306,7 +321,13 @@ extension SwimSession: HKLiveWorkoutBuilderDelegate {
         let meters = collectedTypes.contains(Self.distanceType)
             ? workoutBuilder.statistics(for: Self.distanceType)?.sumQuantity()?.doubleValue(for: .meter())
             : nil
-        Task { @MainActor in self.collected(heartRate: bpm, meters: meters) }
+        let celsius = collectedTypes.contains(Self.waterType)
+            ? workoutBuilder.statistics(for: Self.waterType)?.mostRecentQuantity()?.doubleValue(for: .degreeCelsius())
+            : nil
+        Task { @MainActor in
+            self.collected(heartRate: bpm, meters: meters)
+            if let celsius { self.collected(waterCelsius: celsius) }
+        }
     }
 
     nonisolated func workoutBuilderDidCollectEvent(_ workoutBuilder: HKLiveWorkoutBuilder) {
