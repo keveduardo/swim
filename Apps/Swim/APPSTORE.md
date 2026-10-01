@@ -5,6 +5,18 @@ the tables and quoted blocks below was written into App Store Connect through
 the API the same day (app `6817824465`, version 1.0); this file is the record
 of what was sent and the place to edit it before sending again.
 
+Distribution: **Unlisted** (Kevin, 2026-09-30), like Soccer and Español —
+request at developer.apple.com/contact/request/unlisted-app once it is
+submitted; it goes through the same review.
+
+**NOT SUBMITTED, on purpose.** Kevin swims with it first ("Prepare only, I'll
+swim first"). Everything else is done: the listing, four screenshots, price,
+territories, review notes, build **11** attached (the first with the privacy
+manifest), and the two website-only forms — App Privacy published as "Data
+Not Collected", and the Regulated Medical Device declaration answered "No".
+What remains is one call: add version 1.0 to a review submission and submit
+(the same three API calls Rowing's took), then the unlisted request.
+
 ---
 
 ## App information
