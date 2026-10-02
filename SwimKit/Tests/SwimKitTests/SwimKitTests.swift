@@ -142,3 +142,50 @@ struct SwimClockTests {
         #expect(WaterTemperature.text(celsius: 0, fahrenheit: true) == "32°F")
     }
 }
+
+@Suite("summary stats")
+struct SwimStatsTests {
+    @Test func paceIsPerHundredOfThePoolsUnitWhileSwimming() {
+        // 20 lengths of 25 yd = 500 yd in 9:20 of swimming → 1:52 per 100 yd.
+        let stats = SwimStats(pool: .yards25, meters: 20 * 22.86, swimSeconds: 560, strokeCount: 300, lengthStrokes: [])
+        #expect(stats.lengths == 20)
+        #expect(stats.pacePer100 == 112)
+        #expect(SwimClock.pace(112) == "1:52")
+        #expect(SwimClock.pace(59.6) == "1:00")
+    }
+
+    @Test func swolfIsStrokesPlusSecondsPerLength() {
+        // 15 strokes and 28 seconds a length.
+        let stats = SwimStats(pool: .yards25, meters: 20 * 22.86, swimSeconds: 560, strokeCount: 300, lengthStrokes: [])
+        #expect(stats.swolf == 43)
+        #expect(SwimStats(pool: .meters50, meters: 500, swimSeconds: 600, strokeCount: nil, lengthStrokes: []).swolf == nil)
+    }
+
+    @Test func aSwimWithNoLengthsHasNoPaceOrSwolf() {
+        let stats = SwimStats(pool: .meters25, meters: 0, swimSeconds: 0, strokeCount: 0, lengthStrokes: [])
+        #expect(stats.pacePer100 == nil && stats.swolf == nil && stats.strokes.isEmpty && stats.lengths == 0)
+    }
+
+    @Test func strokesAreAddedUpByLengthMostDistanceFirst() {
+        // HKSwimmingStrokeStyle: 2 freestyle, 4 breaststroke, 0 unknown.
+        let stats = SwimStats(pool: .yards25, meters: 6 * 22.86, swimSeconds: 180, strokeCount: 90,
+                              lengthStrokes: [2, 2, 4, 2, 0, nil])
+        #expect(stats.strokes == [
+            .init(stroke: .freestyle, distance: 75),
+            .init(stroke: .breaststroke, distance: 25),
+        ])
+        #expect(stats.strokes.first?.stroke.title == "Freestyle")
+    }
+
+    @Test func swimSecondsLeaveTheRestsOut() {
+        let start = Date(timeIntervalSinceReferenceDate: 0)
+        var tracker = SetTracker(workoutStart: start)
+        // Four 30 s lengths, two minutes at the wall, four more.
+        for end in [30.0, 60, 90, 120] { tracker.record(.init(start: nil, end: start.addingTimeInterval(end), stroke: 2)) }
+        for end in [270.0, 300, 330, 360] { tracker.record(.init(start: nil, end: start.addingTimeInterval(end), stroke: 2)) }
+        #expect(tracker.sets.count == 2)
+        #expect(tracker.swimSeconds == 240, "two sets of two minutes; the rest is not swimming")
+        #expect(tracker.lengths.map(\.stroke) == Array(repeating: 2, count: 8))
+    }
+}
+

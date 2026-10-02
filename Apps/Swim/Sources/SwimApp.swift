@@ -59,7 +59,12 @@ struct RenderDemo: View {
                                           waterCelsius: nil, heartRate: nil, zone: nil))
         case .summary:
             SummaryPage(summary: .init(pool: .yards25, meters: 40 * 22.86, duration: 1712,
-                                       sets: 6, averageHeartRate: 128, waterCelsius: 27.8)) {}
+                                       sets: 6, averageHeartRate: 128, waterCelsius: 27.8,
+                                       activeCalories: 312,
+                                       stats: SwimStats(pool: .yards25, meters: 40 * 22.86, swimSeconds: 1180,
+                                                        strokeCount: 640,
+                                                        lengthStrokes: Array(repeating: 2, count: 32)
+                                                            + Array(repeating: 4, count: 8)))) {}
         }
     }
 

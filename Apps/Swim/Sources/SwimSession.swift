@@ -36,6 +36,10 @@ final class SwimSession: NSObject {
         var averageHeartRate: Double?
         /// The last reading of the swim, in Celsius; nil when the watch gave none.
         var waterCelsius: Double?
+        /// Active kilocalories, as HealthKit sums them; nil when it has none.
+        var activeCalories: Double?
+        /// Pace, SWOLF and the strokes swum (Kevin, 2026-10-02).
+        var stats: SwimStats
     }
 
     private(set) var phase: Phase = .idle
@@ -63,6 +67,8 @@ final class SwimSession: NSObject {
     nonisolated private static let heartRateType = HKQuantityType(.heartRate)
     nonisolated private static let distanceType = HKQuantityType(.distanceSwimming)
     nonisolated private static let waterType = HKQuantityType(.waterTemperature)
+    nonisolated private static let energyType = HKQuantityType(.activeEnergyBurned)
+    nonisolated private static let strokeType = HKQuantityType(.swimmingStrokeCount)
 
     /// What the watch writes: the workout and the samples the data source
     /// collects for a swim. What it reads: those, heart rate for the screen,
@@ -181,13 +187,29 @@ final class SwimSession: NSObject {
                 phase = .discarded
             } else {
                 _ = try await builder.finishWorkout()
+                // Pace and SWOLF are measured against the time spent swimming,
+                // not the rests; with no lap events to split them, the whole
+                // workout is all there is to go on.
+                let swimSeconds = tracker.swimSeconds > 0 ? tracker.swimSeconds : duration
                 phase = .saved(Summary(
                     pool: pool,
                     meters: meters,
                     duration: duration,
                     sets: tracker.sets.count,
                     averageHeartRate: averageHeartRate,
-                    waterCelsius: waterCelsius
+                    waterCelsius: waterCelsius,
+                    activeCalories: builder.statistics(for: Self.energyType)?
+                        .sumQuantity()?
+                        .doubleValue(for: .kilocalorie()),
+                    stats: SwimStats(
+                        pool: pool,
+                        meters: meters,
+                        swimSeconds: swimSeconds,
+                        strokeCount: builder.statistics(for: Self.strokeType)?
+                            .sumQuantity()?
+                            .doubleValue(for: .count()),
+                        lengthStrokes: tracker.lengths.map(\.stroke)
+                    )
                 ))
             }
         } catch {
@@ -401,7 +423,9 @@ extension SwimSession: HKLiveWorkoutBuilderDelegate {
             .filter { $0.type == .lap }
             .map { event in
                 let interval = event.dateInterval
-                return SetTracker.Length(start: interval.duration > 0 ? interval.start : nil, end: interval.end)
+                // Which stroke the watch took the length for, when it says.
+                let stroke = (event.metadata?[HKMetadataKeySwimmingStrokeStyle] as? NSNumber)?.intValue
+                return SetTracker.Length(start: interval.duration > 0 ? interval.start : nil, end: interval.end, stroke: stroke)
             }
         Task { @MainActor in self.collected(lengths: lengths) }
     }

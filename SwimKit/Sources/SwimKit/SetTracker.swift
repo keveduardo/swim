@@ -22,10 +22,15 @@ public struct SetTracker: Sendable, Equatable {
         /// When the watch says the length began, if it said.
         public var start: Date?
         public var end: Date
+        /// The stroke the watch says it was — HealthKit's
+        /// `HKSwimmingStrokeStyle` raw value — if it said. The sets never read
+        /// it; the summary does (`SwimStats`).
+        public var stroke: Int?
 
-        public init(start: Date?, end: Date) {
+        public init(start: Date?, end: Date, stroke: Int? = nil) {
             self.start = start
             self.end = end
+            self.stroke = stroke
         }
     }
 
@@ -70,6 +75,9 @@ public struct SetTracker: Sendable, Equatable {
     /// The sets so far, each from its first push-off to its last wall. A set
     /// that is still going ends at its latest length.
     public var sets: [DateInterval] { analyse().sets }
+
+    /// Seconds spent swimming: the sets added up, the rests left out.
+    public var swimSeconds: TimeInterval { sets.reduce(0) { $0 + $1.duration } }
 
     /// How long without a length now counts as a rest.
     public var restThreshold: TimeInterval { analyse().threshold }

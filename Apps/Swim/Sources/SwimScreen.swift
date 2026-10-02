@@ -400,8 +400,22 @@ struct SummaryPage: View {
                     Text(summary.pool.unitLabel).font(.title3.weight(.semibold))
                 }
                 row("Time", SwimClock.total(summary.duration))
+                // Pace and SWOLF are measured while swimming, rests left out
+                // (Kevin, 2026-10-02: "yes add all those to the summary").
+                if let pace = summary.stats.pacePer100 {
+                    row("Pace", "\(SwimClock.pace(pace)) /100 \(summary.pool.unitLabel)")
+                }
                 row("Sets", "\(summary.sets)")
                 row("Avg Heart Rate", summary.averageHeartRate.map { "\(Int($0.rounded())) BPM" } ?? "--")
+                if let swolf = summary.stats.swolf {
+                    row("SWOLF", "\(swolf)")
+                }
+                if let calories = summary.activeCalories {
+                    row("Active Calories", "\(Int(calories.rounded())) CAL")
+                }
+                ForEach(summary.stats.strokes) { share in
+                    row(share.stroke.title, "\(share.distance) \(summary.pool.unitLabel)")
+                }
                 if let water = summary.waterCelsius {
                     row("Water", WaterTemperature.text(celsius: water, fahrenheit: UnitTemperature(forLocale: .current) == .fahrenheit))
                 }
