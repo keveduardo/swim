@@ -1,3 +1,4 @@
+import CoreMotion
 import Foundation
 import HealthKit
 import Observation
@@ -56,6 +57,8 @@ final class SwimSession: NSObject {
     @ObservationIgnored private var session: HKWorkoutSession?
     @ObservationIgnored private var builder: HKLiveWorkoutBuilder?
     @ObservationIgnored private var waterQuery: HKAnchoredObjectQuery?
+    /// The watch's own water sensor, read directly — see `watchSensor`.
+    @ObservationIgnored private var submersion: CMWaterSubmersionManager?
 
     nonisolated private static let heartRateType = HKQuantityType(.heartRate)
     nonisolated private static let distanceType = HKQuantityType(.distanceSwimming)
@@ -134,6 +137,7 @@ final class SwimSession: NSObject {
             try await builder.beginCollection(at: now)
             tracker = SetTracker(workoutStart: now)
             watchWater(since: now)
+            watchSensor()
             phase = .running
             // Splashes are taps. The Digital Crown undoes it, as in Apple's app.
             WKInterfaceDevice.current().enableWaterLock()
@@ -165,6 +169,13 @@ final class SwimSession: NSObject {
         session.end()
         do {
             try await builder.endCollection(at: end)
+            // What the builder holds once collection has ended: a reading that
+            // only reached it at the end still belongs on the summary.
+            if waterCelsius == nil {
+                waterCelsius = builder.statistics(for: Self.waterType)?
+                    .mostRecentQuantity()?
+                    .doubleValue(for: .degreeCelsius())
+            }
             if meters == 0, duration < 60 {
                 builder.discardWorkout()
                 phase = .discarded
@@ -201,6 +212,8 @@ final class SwimSession: NSObject {
     private func clear() {
         if let waterQuery { health.stop(waterQuery) }
         waterQuery = nil
+        submersion?.delegate = nil
+        submersion = nil
         session = nil
         builder = nil
     }
@@ -225,6 +238,9 @@ final class SwimSession: NSObject {
     /// does heart rate. The query stays, for a watch that writes the samples
     /// outside the workout.
     ///
+    /// (2026-10-02: neither showed anything during a swim on build 14 — see
+    /// `watchSensor`, the live source. These two stay for the summary.)
+    ///
     /// ! THE SECOND WAY IS UNPROVEN IN WATER TOO. If the cell still stays "--",
     /// what is left is Core Motion's `CMWaterSubmersionManager`, which is a
     /// bigger thing than it sounds: the Shallow Depth and Pressure capability,
@@ -248,6 +264,36 @@ final class SwimSession: NSObject {
         query.updateHandler = handler
         health.execute(query)
         waterQuery = query
+    }
+
+    /// The third way in, and the only one that is LIVE by design: the watch's
+    /// water sensor itself, through Core Motion.
+    ///
+    /// **Why.** The two Health routes above showed nothing during Kevin's swim
+    /// of 2026-10-02 (build 14), though the day before the number did appear,
+    /// and though Health held the reading afterwards both times. So the watch
+    /// records the temperature, but writes it to Health on its own schedule,
+    /// not as it measures it. `CMWaterSubmersionManager` hands over the
+    /// sensor's reading about three times a second while the watch is under
+    /// water; the reading settles over the first seconds, and the cell shows
+    /// whatever is newest.
+    ///
+    /// **What it needs.** The Shallow Depth and Pressure capability
+    /// (`Swim.entitlements`; no approval from Apple) and
+    /// `NSMotionUsageDescription` — ! without that string, creating the manager
+    /// CRASHES. Only a watch with the sensor has it, and the Simulator does
+    /// not, so the manager is made only when the watch says it is available.
+    ///
+    /// ! NOT the `underwater-depth` background mode. That is for dive apps:
+    /// the auto-launch list, held frontmost, a runtime session of its own. A
+    /// swim already keeps this app running through its workout session.
+    /// UNPROVEN IN WATER: if the cell still shows "--", the background mode is
+    /// what is left to try.
+    private func watchSensor() {
+        guard CMWaterSubmersionManager.waterSubmersionAvailable else { return }
+        let manager = CMWaterSubmersionManager()
+        manager.delegate = self
+        submersion = manager
     }
 
     private func readMaxHeartRate() -> Double? {
@@ -278,7 +324,8 @@ final class SwimSession: NSObject {
     }
 
     fileprivate func collected(waterCelsius celsius: Double) {
-        guard phase == .running else { return }
+        // While saving too: the summary is built after the last reading lands.
+        guard phase == .running || phase == .saving else { return }
         waterCelsius = celsius
     }
 
@@ -305,6 +352,23 @@ extension SwimSession: HKWorkoutSessionDelegate {
         let message = error.localizedDescription
         Task { @MainActor in self.sessionFailed(message) }
     }
+}
+
+// MARK: - CMWaterSubmersionManagerDelegate
+
+extension SwimSession: CMWaterSubmersionManagerDelegate {
+    nonisolated func manager(_ manager: CMWaterSubmersionManager, didUpdate measurement: CMWaterTemperature) {
+        // Only a number crosses to the main actor.
+        let celsius = measurement.temperature.converted(to: .celsius).value
+        Task { @MainActor in self.collected(waterCelsius: celsius) }
+    }
+
+    // The protocol's other three. Depth and submersion events are not this
+    // app's business, and an error (no entitlement, no sensor) leaves the cell
+    // to the Health routes, which is where it was before.
+    nonisolated func manager(_ manager: CMWaterSubmersionManager, didUpdate event: CMWaterSubmersionEvent) {}
+    nonisolated func manager(_ manager: CMWaterSubmersionManager, didUpdate measurement: CMWaterSubmersionMeasurement) {}
+    nonisolated func manager(_ manager: CMWaterSubmersionManager, errorOccurred error: any Error) {}
 }
 
 // MARK: - HKLiveWorkoutBuilderDelegate

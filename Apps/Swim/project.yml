@@ -76,6 +76,11 @@ targets:
         INFOPLIST_KEY_NSHealthShareUsageDescription: >-
           Swim reads your heart rate, lengths and the water temperature during
           a swim, and your birth date to work out your heart-rate zones.
+        # ! Not optional: creating CMWaterSubmersionManager without this string
+        # crashes the app (SwimSession.watchSensor).
+        INFOPLIST_KEY_NSMotionUsageDescription: >-
+          Swim reads the water temperature from your watch's water sensor
+          during a swim.
     info:
       # Only for what has no INFOPLIST_KEY_ build setting. `workout-processing`
       # is what keeps an active session running with the wrist down.
