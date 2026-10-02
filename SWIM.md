@@ -60,6 +60,32 @@ GitHub macOS runner and the build goes to TestFlight.
 - **Always-On:** the same layout; the page ticks once a second either way now that no hundredths are on it.
 - A swim with no distance and under a minute is discarded, not saved.
 
+## The water temperature, as it stands (2026-10-02)
+
+Three sources, because the first two are not live:
+
+1. **The water sensor itself** — `CMWaterSubmersionManager`
+   (`SwimSession.watchSensor`, build 18). The only one that is live by design:
+   about three readings a second while submerged. Needs the Shallow Depth and
+   Pressure capability (now on `com.brisaloca.swim.watchkitapp`; Xcode's
+   automatic signing switched it on at the first signed build that asked) and
+   `NSMotionUsageDescription` — the app crashes creating the manager without
+   that string. **No `underwater-depth` background mode**; that is the thing
+   to try next if a swim still shows "--". ⚠️ Unproven in water.
+2. **The workout builder** — the data source is told to collect
+   `waterTemperature` (build 14).
+3. **Health** — an anchored query from Start (build 9).
+
+What the swims showed: build 11 (query only) nothing; build 14, 2026-10-01,
+Kevin said it worked; build 14, 2026-10-02, nothing during the workout. Health
+held the reading afterwards each time, so the watch records it and writes it
+late. Sources 2 and 3 now mostly serve the summary, which also takes a reading
+that reaches the builder only as the swim ends.
+
+**App Review has build 14.** Build 18 is TestFlight only until a swim proves
+it; then it replaces 14 on the version (which means taking the version out of
+review and submitting again).
+
 ## Identifiers
 
 - `com.brisaloca.swim`: the iOS stub container, and the App Store record.
