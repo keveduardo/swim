@@ -175,4 +175,4 @@ The end-of-swim summary now shows more:
 • Pace per 100, timed while swimming, with rests left out
 • SWOLF
 • Active calories
-• Strokes, by length swum
+• Distance swum in each stroke (freestyle, breaststroke and so on)
