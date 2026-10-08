@@ -157,7 +157,7 @@ page and the summary.
 
 ---
 
-## 1.0.1 (prepped 2026-10-07)
+## 1.0.1 (prepped 2026-10-07): build 24
 
 The code shipped as TestFlight build 20 (fe042b3), rebuilt with
 `MARKETING_VERSION` 1.0.1 because build 20's plist says 1.0, which would fail
