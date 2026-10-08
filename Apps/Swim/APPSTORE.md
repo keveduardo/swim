@@ -154,3 +154,25 @@ page and the summary.
   via `@AppStorage`. `Resources/PrivacyInfo.xcprivacy` declares it (required-
   reason `CA92.1`); it was added for this submission, so the build attached is
   the first one that carries it.
+
+---
+
+## 1.0.1 (prepped 2026-10-07)
+
+The code shipped as TestFlight build 20 (fe042b3), rebuilt with
+`MARKETING_VERSION` 1.0.1 because build 20's plist says 1.0, which would fail
+with ITMS-90062. The ASC version cannot be created until 1.0 is approved and
+released. After that: create version 1.0.1, attach the new build, set What's
+New, and submit with manual release.
+
+Also in this build, still untested in the water: the live water temperature
+is read straight from the sensor through CMWaterSubmersionManager (build 18).
+What's New does not claim it until a swim shows it.
+
+### What's New (4000)
+
+The end-of-swim summary now shows more:
+• Pace per 100, timed while swimming, with rests left out
+• SWOLF
+• Active calories
+• Strokes, by length swum
