@@ -24,6 +24,13 @@ audience Other — "Members of one household"; category Other — "Fitness
 (workout recording)"; Unmanaged, 4 devices; USA. On that form the tick boxes
 only take through the form-fill tool — clicks on them do not register.
 
+**REJECTED 2026-10-01 20:45 PT** (boilerplate Guideline 2.1 "Information
+Needed – New App Submission", nothing wrong found). **RESUBMITTED 2026-10-07
+20:01 PT, still build 14**: reply with the six answers and the dry-land
+recording, Notes updated to match. Unlisted approved 2026-10-06 (case
+102982837254). Build 20's summary additions ship as 1.0.1 after approval;
+bump the plist to 1.0.1 and rebuild first.
+
 ---
 
 ## App information
